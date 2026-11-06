@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PhishLens | Email Security</title>
+  <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-icon">P</span>
+      <span>PhishLens<small>EMAIL SECURITY INTELLIGENCE</small></span>
+    </a>
+    <div class="local-label"><span></span> LOCAL ANALYSIS</div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="eyebrow">THREAT INVESTIGATION / EMAIL</div>
+      <h1>Understand what's<br>hiding in your inbox.</h1>
+      <p>Analyze suspicious emails, investigate links, and uncover
+         phishing indicators with an explainable risk assessment.</p>
+    </section>
+
+    {% if error %}
+      <div class="alert" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <section class="panel input-panel">
+      <div class="section-heading">
+        <div>
+          <h2>Analyze an email</h2>
+          <p>Paste the complete raw email or upload an .eml file.</p>
+        </div>
+        <span class="step-label">01 / INPUT</span>
+      </div>
+
+      <form action="/analyze" method="post"
+            enctype="multipart/form-data">
+        <label for="email_text">Raw email source</label>
+        <textarea id="email_text" name="email_text"
+          placeholder="From: sender@example.com&#10;Reply-To: other@example.com&#10;Subject: Urgent account verification&#10;Authentication-Results: mx.example; spf=fail&#10;&#10;Your account is suspended. Click here to verify your password..."
+          spellcheck="false"></textarea>
+
+        <div class="or-divider"><span>OR UPLOAD EMAIL FILE</span></div>
+        <label class="file-picker" for="email_file">
+          <span class="file-symbol">↑</span>
+          <span><strong id="file-name">Choose an .eml file</strong>
+            <small>Maximum file size: 1 MB</small></span>
+          <input id="email_file" type="file" name="email_file"
+                 accept=".eml,message/rfc822">
+        </label>
+
+        <button class="primary-button" type="submit">
+          <span>Run email analysis</span><span>→</span>
+        </button>
+        <p class="privacy-note">Your email is processed by this local
+           application. Links and attachments are not opened.</p>
+      </form>
+    </section>
+
+    {% if report %}
+    <section class="results" id="results">
+      <div class="section-heading result-heading">
+        <div>
+          <div class="eyebrow">ANALYSIS COMPLETE</div>
+          <h2>Investigation results</h2>
+          <p>Review the evidence before making a decision.</p>
+        </div>
+        <button class="secondary-button" id="download-report" type="button">
+          ↓ Export JSON
+        </button>
+      </div>
+
+      <div class="overview-grid">
+        <article class="panel score-panel">
+          <div class="eyebrow">COMPOSITE RISK SCORE</div>
+          <div class="score-number">
+            {{ report.score }}<span>/100</span>
+          </div>
+          <div class="meter">
+            <div class="meter-fill {{ report.verdict_key }}"
+     data-score="{{ report.score }}"></div>
+          <span class="verdict {{ report.verdict_key }}">
+            {{ report.verdict }}
+          </span>
+          <p class="muted">{{ report.disclaimer }}</p>
+        </article>
+
+        <article class="panel summary-panel">
+          <div class="eyebrow">EMAIL OVERVIEW</div>
+          <dl>
+            <dt>Subject</dt><dd>{{ report.subject }}</dd>
+            <dt>From</dt><dd>{{ report.sender }}</dd>
+            <dt>Reply-To</dt><dd>{{ report.reply_to }}</dd>
+            <dt>Date</dt><dd>{{ report.date }}</dd>
+            <dt>URLs detected</dt><dd>{{ report.url_count }}</dd>
+          </dl>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="section-heading">
+          <div><h2>Security findings</h2>
+            <p>Signals that contributed to the assessment.</p></div>
+          <span class="step-label">{{ report.findings|length }} FINDINGS</span>
+        </div>
+        <div class="findings-list">
+          {% for finding in report.findings %}
+          <div class="finding">
+            <span class="finding-dot {{ finding.severity }}"></span>
+            <div class="finding-content">
+              <strong>{{ finding.title }}</strong>
+              <p>{{ finding.detail }}</p>
+            </div>
+            <span class="points">
+              {% if finding.points %}+{{ finding.points }}{% else %}INFO{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <div><h2>Email authentication</h2>
+            <p>Results reported in the supplied headers, if present.</p></div>
+        </div>
+        <div class="auth-grid">
+          {% for name, value in report.auth_results.items() %}
+          <div class="auth-item">
+            <span>{{ name }}</span>
+            <strong class="auth-value {{ value|lower|replace(' ', '-') }}">
+              {{ value|upper }}
+            </strong>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="muted">These values are read from the supplied email
+          headers; PhishLens does not independently verify them.</p>
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <div><h2>Extracted URLs</h2>
+            <p>Links are displayed for inspection only. They are not opened.</p>
+          </div>
+        </div>
+        {% if report.urls %}
+        <div class="url-list">
+          {% for item in report.urls %}
+          <div class="url-item">
+            <span class="url-status {{ 'danger' if item.suspicious else 'neutral' }}">
+              {{ 'REVIEW' if item.suspicious else 'NO RULE MATCH' }}
+            </span>
+            <strong>{{ item.host }}</strong>
+            <code>{{ item.url }}</code>
+            {% if item.reasons %}
+              <p>{{ item.reasons|join(' · ') }}</p>
+            {% else %}
+              <p>No configured URL warning detected. This does not establish safety.</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+          <p class="muted">No plain-text URLs were detected.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel">
+        <div class="section-heading">
+          <div><h2>Extracted message preview</h2>
+            <p>Text-only preview; untrusted HTML is not rendered.</p></div>
+        </div>
+        <pre class="body-preview">{{ report.body_preview }}</pre>
+      </article>
+
+      <p class="footer-note">PhishLens provides heuristic triage, not a
+        definitive malware or phishing verdict. A low score does not
+        guarantee an email is safe.</p>
+    </section>
+    {% endif %}
+
+    <footer>PHISHLENS · EMAIL THREAT ANALYSIS · BUILT FOR DEFENSIVE SECURITY</footer>
+  </main>
+
+  {% if report %}
+    <script id="report-data" type="application/json">
+      {{ report|tojson }}
+    </script>
+  {% endif %}
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
+
